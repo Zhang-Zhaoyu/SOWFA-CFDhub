@@ -1,0 +1,94 @@
+#!/bin.bash             # use bash as command interpreter
+#$ -cwd                 # currentWorkingDirectory
+#$ -N zzhangjob           # jobName
+#$ -j y                 # merges output and errors
+#$ -S /bin/bash         # scripting language
+#$ -l h_rt=50:00:00      # jobDuration hh:mm:ss
+#$ -q hub.q             # queueName
+#$ -pe mpi 16           # cpuNumber
+
+
+
+
+
+#module load openmpi-x86_64 || export PATH=$PATH:/usr/lib64/openmpi/bin
+module use /etc/modulefiles/
+module load openmpi-x86_64
+source /software/OpenFOAM/OpenFOAM-2.4.x/etc/bashrc
+WM_NCOMPPROCS=4 foamCompiler=ThirdParty WM_COMPILER=Gcc48 WM_MPLIB=SYSTEMOPENMPI
+
+#module use /software/modules/compilers/
+#module load gcc-9.3.0
+#module load openfoam-2112-gcc-9.3.0-vwgswbz
+
+#module use /big-scratch/software/modules/mecc4/CFD
+#module avail
+#module load openfoam-v2106
+
+
+
+
+
+
+source ~/sowfa/SOWFA-2.4.0/set_env.sh; source ~/sowfa/SOWFA-2.4.0/.bash_profile
+
+
+
+#source ~/sowfa/SOWFA-2.4.0/bash_profile
+#OpenFOAM-2.4.x-central
+#module list
+
+#cd $PBS_O_WORKDIR
+
+
+export LD_LIBRARY_PATH=~/sowfa/SOWFA-2.4.0/lib/$WM_OPTIONS:$LD_LIBRARY_PATH
+
+export PATH=~/sowfa/SOWFA-2.4.0/applications/bin/$WM_OPTIONS:$PATH
+
+cores=16
+
+initializer=setFieldsABL
+solver=ABLSolver
+runNumber=2
+startTime=5000
+# change the direction at system/sampling/boundaryDataPre
+
+cp system/controlDict.$runNumber system/controlDict
+
+echo "Starting OpenFOAM job at: " $(date)
+echo "using " $cores " cores"
+
+# Run the flow field initializer (parallel)
+if [ $runNumber -eq 1 ] 
+   then
+   mpirun -np $cores $initializer -parallel > log.$runNumber.$initializer 2>&1
+fi
+
+# Run the solver (parallel)
+mpirun -np $cores $solver -parallel > log.$runNumber.$solver 2>&1
+
+echo "Ending OpenFOAM job at: " $(date)
+
+
+echo 'copy tools'
+cp ~/sowfa/SOWFA-2.4.0/tools/sourceDataConversion/* ./postProcessing/
+cp -r ~/sowfa/SOWFA-2.4.0/tools/boundaryDataConversion/* ./postProcessing/
+
+
+echo 'make boundary data // source history read'
+cd postProcessing
+./makeBoundaryDataFiles.west.sh 
+python sourceHistoryRead.py
+cd ..
+
+echo 'prepare drivingData'
+mkdir drivingData
+cp -r postProcessing/boundaryData drivingData/ 
+cp postProcessing/sources drivingData/
+
+echo 'reconstruct'
+reconstructPar -time $startTime -fields '(k kappat nuSgs p_rgh qwall Rwall T U)'
+
+echo 'proccessing finish'
+
+
