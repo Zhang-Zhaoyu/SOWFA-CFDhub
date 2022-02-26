@@ -1,0 +1,54 @@
+#!/bin.bash             # use bash as command interpreter
+#$ -cwd                 # currentWorkingDirectory
+#$ -N zzhangjob           # jobName
+#$ -j y                 # merges output and errors
+#$ -S /bin/bash         # scripting language
+#$ -l h_rt=50:00:00      # jobDuration hh:mm:ss
+#$ -q hub.q             # queueName
+#$ -pe mpi 16           # cpuNumber
+
+
+
+module use /etc/modulefiles/
+module load openmpi-x86_64
+source /software/OpenFOAM/OpenFOAM-2.4.x/etc/bashrc
+WM_NCOMPPROCS=4 foamCompiler=ThirdParty WM_COMPILER=Gcc48 WM_MPLIB=SYSTEMOPENMPI
+
+
+source ~/sowfa/SOWFA-2.4.0/set_env.sh; source ~/sowfa/SOWFA-2.4.0/.bash_profile
+
+
+export LD_LIBRARY_PATH=~/sowfa/SOWFA-2.4.0/lib/$WM_OPTIONS:$LD_LIBRARY_PATH
+export PATH=~/sowfa/SOWFA-2.4.0/applications/bin/$WM_OPTIONS:$PATH
+
+
+
+
+# User Input.
+OpenFOAMversion=2.4.0   # OpenFOAM version
+startTime=5000                     # Start time
+cores=16                       # Enter the number of cores you will preprocess on.
+runNumber=1                     # Enter the run number (useful for keeping track of restarts).
+solver=windPlantSolver.ALM      # Enter the name of the flow solver.
+
+
+
+echo "Starting OpenFOAM job at: " $(date)
+echo "using " $cores " cores"
+
+
+# Source the bash profile and then call the appropriate OpenFOAM version function
+# so that all the modules and environment variables get set.
+echo "Sourcing the bash profile, loading modules, and setting the OpenFOAM environment variables..."
+#source $HOME/.bash_profile
+#OpenFOAM-$OpenFOAMversion
+
+
+# Get the control dictionary for this particular run.
+cp system/controlDict.$runNumber system/controlDict
+
+
+# Run the solver.
+mpirun -np $cores $solver -parallel > log.$runNumber.$solver 2>&1
+
+echo "Ending OpenFOAM job at: " $(date)
